@@ -177,7 +177,9 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   /* ワードクラウドの各語（HTML span 方式） */
   .wc-canvas :global(.wc-word) {
     cursor: default;
-    opacity: 0; /* 出現アニメで 1 に */
+    /* CSS だけで必ずフェードイン（JS/wordcloudstop に依存しない＝確実に表示）。
+       JS の animateWords が発火すれば、これを上書きして浮遊アニメを足す。 */
+    animation: wc-in .6s ease-out both;
     will-change: translate, scale, opacity;
     transition: scale .2s cubic-bezier(.2, .8, .2, 1), filter .2s ease;
   }
