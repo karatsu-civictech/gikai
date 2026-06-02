@@ -141,12 +141,17 @@ async function main() {
     .filter((m) => m.parts.join('').replace(/\s/g, '').length >= 50) // 発言が極端に少ない人は除外
     .sort((a, b) => a.seat - b.seat);
 
+  // id は ASCII（席次ベース）にする。
+  // Cloudflare Pages は非ASCII（日本語）のファイル/ディレクトリ名を配信できないため、
+  // URL・ファイル名に漢字氏名を使うと議員ページ/JSONが 404 フォールバックする。
+  const idOf = (m) => `g${m.seat}`;
+
   for (const m of members) {
-    await writeFile(join(RAW_DIR, `${m.name}.txt`), m.parts.join('\n'), 'utf-8');
+    await writeFile(join(RAW_DIR, `${idOf(m)}.txt`), m.parts.join('\n'), 'utf-8');
   }
 
   const memberList = members.map((m) => ({
-    id: m.name,
+    id: idOf(m),
     name: m.name,
     seat: m.seat,
     isSample: false,
