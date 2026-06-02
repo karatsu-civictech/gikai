@@ -1,17 +1,51 @@
 ---
-
+import Layout from '../layouts/Layout.astro';
+import { members } from '../data/members.ts';
+// BASE_URL は末尾スラッシュ有無が環境依存なので必ず '/' で終わるよう正規化
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const hasSample = members.some((m) => m.isSample);
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<Layout>
+  <section class="intro">
+    <h1>唐津の議員見える化プロジェクト</h1>
+    <p>
+      唐津市議会の会議録から、議員ごとの発言を <strong>ワードクラウド</strong> にして表示します。
+      その議員が議会で「どんなテーマについて多く話しているか」が一目で分かります。
+    </p>
+    {hasSample && (
+      <p class="sample-note">
+        ⚠️ 現在表示しているのは仕組みを確認するための <strong>サンプル（ダミー）データ</strong> です。
+        実際の唐津市議会会議録の取り込みは準備中です。
+      </p>
+    )}
+  </section>
+
+  <h2>議員を選ぶ</h2>
+  <ul class="member-grid">
+    {members.map((m) => (
+      <li>
+        <a href={`${base}giin/${m.id}/`} class="member-card">
+          <span class="member-name">{m.name}</span>
+          {m.party && <span class="member-party">{m.party}</span>}
+          {m.isSample && <span class="badge-sample">サンプル</span>}
+        </a>
+      </li>
+    ))}
+  </ul>
+</Layout>
+
+<style>
+  .intro { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 2rem; }
+  .intro h1 { margin: 0 0 .75rem; font-size: clamp(1.5rem, 4vw, 2rem); }
+  .intro p { margin: 0 0 .5rem; color: var(--ink-soft); }
+  .intro strong { color: var(--ink); }
+  .sample-note { background: #fff0d6; border: 1px solid #f0d9a8; color: #7a5a12; border-radius: 10px; padding: .75rem 1rem; }
+  h2 { font-size: 1.25rem; }
+  .member-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+  .member-card { display: flex; flex-direction: column; gap: .25rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.25rem; text-decoration: none; color: var(--ink); transition: transform .12s, box-shadow .12s; position: relative; }
+  .member-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,123,138,.12); }
+  .member-name { font-weight: 700; font-size: 1.05rem; }
+  .member-party { color: var(--ink-soft); font-size: .85rem; }
+  .badge-sample { position: absolute; top: .6rem; right: .6rem; font-size: .65rem; font-weight: 700; background: #e7edf0; color: #5a727d; padding: .15rem .5rem; border-radius: 999px; }
+</style>

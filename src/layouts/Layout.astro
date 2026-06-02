@@ -1,0 +1,67 @@
+---
+interface Props {
+  title?: string;
+  description?: string;
+}
+const {
+  title = '唐津の議員見える化プロジェクト',
+  description = '唐津市議会の会議録から、議員ごとの発言を可視化します。',
+} = Astro.props;
+// BASE_URL は末尾スラッシュ有無が環境依存なので必ず '/' で終わるよう正規化
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const fullTitle =
+  title === '唐津の議員見える化プロジェクト'
+    ? title
+    : `${title}｜唐津の議員見える化プロジェクト`;
+---
+
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href={base} class="brand">🗳️ 唐津の議員見える化プロジェクト</a>
+        <a href="https://karatsu-civictech.org/" class="home-link">シビックテック唐津</a>
+      </div>
+    </header>
+    <main class="container"><slot /></main>
+    <footer class="site-footer">
+      <div class="container">
+        <p>
+          データ出典：<a href="https://ssp.kaigiroku.net/tenant/karatsu/SpTop.html" target="_blank" rel="noopener">唐津市議会 会議録検索システム</a>
+        </p>
+        <p class="muted">
+          「唐津の議員見える化プロジェクト」は <a href="https://karatsu-civictech.org/" target="_blank" rel="noopener">シビックテック唐津</a> による非公式の取り組みです。
+        </p>
+      </div>
+    </footer>
+
+    <style is:global>
+      :root {
+        --bg: #f7f9fb; --surface: #fff; --ink: #14323f; --ink-soft: #4a6573;
+        --brand: #0f7b8a; --brand-dark: #0a5b66; --border: #e2eaef; --radius: 14px;
+        --font: system-ui, -apple-system, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', Meiryo, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: var(--font); color: var(--ink); background: var(--bg); line-height: 1.7; }
+      a { color: var(--brand-dark); }
+      .container { width: 100%; max-width: 960px; margin-inline: auto; padding-inline: 1.25rem; }
+      .site-header { background: var(--brand); color: #fff; }
+      .header-inner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 60px; flex-wrap: wrap; }
+      .brand { color: #fff; font-weight: 700; text-decoration: none; font-size: 1.05rem; }
+      .home-link { color: #d4eef1; text-decoration: none; font-size: .9rem; font-weight: 600; }
+      .home-link:hover { color: #fff; }
+      main { min-height: 60vh; padding-block: 2rem; }
+      .site-footer { border-top: 1px solid var(--border); background: #fff; padding-block: 1.5rem; margin-top: 2rem; font-size: .9rem; }
+      .site-footer p { margin: .25rem 0; }
+      .muted { color: var(--ink-soft); }
+    </style>
+  </body>
+</html>

@@ -1,0 +1,202 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { members } from '../../data/members.ts';
+
+export function getStaticPaths() {
+  return members.map((m) => ({ params: { id: m.id }, props: { member: m } }));
+}
+
+const { member } = Astro.props;
+// BASE_URL は末尾スラッシュ有無が環境依存なので必ず '/' で終わるよう正規化
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+---
+
+<Layout title={member.name}>
+  <a href={base} class="back">← 議員一覧へ</a>
+
+  <header class="member-head">
+    <h1>{member.name}</h1>
+    {member.party && <p class="party">{member.party}</p>}
+    {member.isSample && (
+      <p class="sample-note">
+        ⚠️ これはサンプル（ダミー）データです。実在議員の発言ではありません。
+      </p>
+    )}
+  </header>
+
+  <section class="wc-section">
+    <h2>発言ワードクラウド</h2>
+    <p class="hint">議会発言で多く使われた語ほど大きく表示されます。語にカーソルを乗せると拡大します。</p>
+    <div class="wc-wrap">
+      <div
+        id="wordcloud"
+        class="wc-canvas"
+        data-id={member.id}
+        data-base={base}
+        role="img"
+        aria-label={`${member.name} の発言ワードクラウド`}
+      ></div>
+      <p id="wc-fallback" class="wc-fallback">ワードクラウドを生成中…</p>
+    </div>
+  </section>
+
+  <section class="ranking">
+    <h2>よく使われた語（上位）</h2>
+    <ol id="word-ranking" class="word-ranking"></ol>
+  </section>
+</Layout>
+
+<script>
+  import WordCloud from 'wordcloud';
+
+  const el = document.getElementById('wordcloud') as HTMLElement;
+  const fallback = document.getElementById('wc-fallback') as HTMLElement;
+  const ranking = document.getElementById('word-ranking') as HTMLElement;
+  const id = el.dataset.id!;
+  const base = el.dataset.base!;
+  const reduceMotion = window.matchMedia(
+    '(prefers-reduced-motion: reduce)',
+  ).matches;
+
+  // 白背景でも読みやすい、彩度高めの多色パレット
+  const palette = [
+    '#0f7b8a', // teal
+    '#e8590c', // orange
+    '#2f9e44', // green
+    '#1971c2', // blue
+    '#9c36b5', // purple
+    '#e03131', // red
+    '#f08c00', // amber
+    '#1098ad', // cyan
+    '#d6336c', // pink
+    '#5f3dc4', // indigo
+  ];
+
+  // 描画後、各語に「出現(once)」＋「浮遊(infinite)」アニメを個別の
+  // ランダムなタイミングで付与する。浮遊は translate、ホバー拡大は scale と
+  // 別プロパティを使うため互いに干渉しない。
+  function animateWords() {
+    const spans = el.querySelectorAll<HTMLElement>('.wc-word');
+    spans.forEach((s, i) => {
+      if (reduceMotion) {
+        s.style.opacity = '1';
+        return;
+      }
+      const dur = (3.5 + Math.random() * 3).toFixed(2); // 3.5〜6.5s
+      const delay = (Math.random() * -5).toFixed(2); // 位相をばらす
+      const inDelay = (i * 0.012).toFixed(3); // 出現を少しずつずらす
+      s.style.animation =
+        `wc-in .5s ease-out ${inDelay}s both, ` +
+        `wc-float ${dur}s ease-in-out ${delay}s infinite`;
+    });
+  }
+
+  async function render() {
+    let data: { words: [string, number][] };
+    try {
+      const res = await fetch(`${base}wordclouds/${encodeURIComponent(id)}.json`);
+      if (!res.ok) throw new Error(String(res.status));
+      data = await res.json();
+    } catch {
+      fallback.textContent = 'この議員のデータはまだありません。';
+      return;
+    }
+
+    const words = data.words ?? [];
+    if (words.length === 0) {
+      fallback.textContent = 'データがありません。';
+      return;
+    }
+
+    // 上位語ランキング（テキスト版・フォールバック兼アクセシビリティ）
+    ranking.innerHTML = '';
+    for (const [word, count] of words.slice(0, 20)) {
+      const li = document.createElement('li');
+      li.textContent = `${word}（${count}）`;
+      ranking.appendChild(li);
+    }
+
+    if (!WordCloud.isSupported) {
+      fallback.textContent =
+        'お使いの環境ではワードクラウドを表示できません。上位語の一覧をご覧ください。';
+      return;
+    }
+
+    // 横幅に合わせてサイズ決定
+    const wrapWidth = el.parentElement!.clientWidth;
+    const width = Math.min(880, wrapWidth);
+    const height = Math.round(width * 0.62);
+    el.innerHTML = '';
+    el.style.width = width + 'px';
+    el.style.height = height + 'px';
+
+    const maxCount = words[0][1] || 1;
+    fallback.style.display = 'none';
+
+    el.addEventListener('wordcloudstop', animateWords, { once: true });
+
+    WordCloud(el, {
+      list: words,
+      gridSize: Math.round((width / 1024) * 16) + 4,
+      weightFactor: (count: number) => (count / maxCount) * (width / 8) + 12,
+      fontFamily:
+        "'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif",
+      color: (word, weight, fontSize, distance, theta) =>
+        palette[Math.floor(Math.random() * palette.length)],
+      rotateRatio: 0,
+      shuffle: false,
+      drawOutOfBound: false,
+      shrinkToFit: true,
+      classes: 'wc-word',
+    });
+  }
+
+  render();
+  let t: number;
+  window.addEventListener('resize', () => {
+    clearTimeout(t);
+    t = window.setTimeout(render, 300);
+  });
+</script>
+
+<style>
+  .back { display: inline-block; margin-bottom: 1rem; text-decoration: none; font-weight: 600; }
+  .member-head h1 { margin: 0 0 .25rem; }
+  .party { margin: 0; color: var(--ink-soft); }
+  .sample-note { background: #fff0d6; border: 1px solid #f0d9a8; color: #7a5a12; border-radius: 10px; padding: .6rem .9rem; margin-top: .75rem; display: inline-block; }
+  .wc-section { margin-top: 1.5rem; }
+  .wc-section h2, .ranking h2 { font-size: 1.2rem; }
+  .hint { color: var(--ink-soft); margin-top: 0; }
+  .wc-wrap { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; display: flex; flex-direction: column; align-items: center; min-height: 200px; overflow: hidden; }
+  .wc-canvas { position: relative; max-width: 100%; margin-inline: auto; }
+  .wc-fallback { color: var(--ink-soft); }
+  .word-ranking { columns: 2; gap: 2rem; color: var(--ink); }
+  @media (max-width: 480px) { .word-ranking { columns: 1; } }
+  .ranking { margin-top: 2rem; }
+
+  /* ワードクラウドの各語（HTML span 方式） */
+  .wc-canvas :global(.wc-word) {
+    cursor: default;
+    opacity: 0; /* 出現アニメで 1 に */
+    will-change: translate, scale, opacity;
+    transition: scale .2s cubic-bezier(.2, .8, .2, 1), filter .2s ease;
+  }
+  .wc-canvas :global(.wc-word:hover) {
+    scale: 1.25;
+    filter: brightness(1.08) saturate(1.12);
+    z-index: 5;
+  }
+
+  @keyframes wc-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes wc-float {
+    0%, 100% { translate: 0 0; }
+    50% { translate: 0 -7px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wc-canvas :global(.wc-word) { animation: none !important; opacity: 1; translate: 0 !important; }
+  }
+</style>
