@@ -122,23 +122,29 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
       return;
     }
 
-    // 横幅に合わせてサイズ決定
-    const wrapWidth = el.parentElement!.clientWidth;
-    const width = Math.min(880, wrapWidth);
-    const height = Math.round(width * 0.62);
+    // 横幅に合わせてサイズ決定（clientWidth が 0 のときは画面幅にフォールバック）
+    const wrapWidth = el.parentElement?.clientWidth || window.innerWidth || 360;
+    const width = Math.max(280, Math.min(880, wrapWidth));
+    const narrow = width < 480; // スマホ
+    // 狭い画面は縦長にして、語を入りやすくする
+    const height = Math.round(width * (narrow ? 1.0 : 0.62));
     el.innerHTML = '';
     el.style.width = width + 'px';
     el.style.height = height + 'px';
 
-    const maxCount = words[0][1] || 1;
+    // 狭い画面に100語は入りきらず空白になるため、幅に応じて語数を絞る
+    const list = words.slice(0, narrow ? 35 : width < 700 ? 60 : 100);
+    const maxCount = list[0][1] || 1;
     fallback.style.display = 'none';
 
     el.addEventListener('wordcloudstop', animateWords, { once: true });
 
     WordCloud(el, {
-      list: words,
-      gridSize: Math.round((width / 1024) * 16) + 4,
-      weightFactor: (count: number) => (count / maxCount) * (width / 8) + 12,
+      list,
+      // 小さいグリッドで密に配置。最小語サイズも画面に合わせて小さく。
+      gridSize: Math.max(4, Math.round(width / 80)),
+      weightFactor: (count: number) =>
+        (count / maxCount) * (width / (narrow ? 10 : 8)) + (narrow ? 8 : 12),
       fontFamily:
         "'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif",
       color: (word, weight, fontSize, distance, theta) =>
