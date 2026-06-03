@@ -23,6 +23,15 @@ const fullTitle =
     <meta name="generator" content={Astro.generator} />
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
+
+    <!-- Google Analytics 4（ハブと同一プロパティで /gikai も計測）-->
+    <script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-RM5801F92B"></script>
+    <script is:inline>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-RM5801F92B');
+    </script>
   </head>
   <body>
     <header class="site-header">
