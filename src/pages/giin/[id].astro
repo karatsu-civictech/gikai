@@ -75,9 +75,8 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   // 描画後、各語に「出現(once)」＋「浮遊(infinite)」アニメを個別の
   // ランダムなタイミングで付与する。浮遊は translate、ホバー拡大は scale と
   // 別プロパティを使うため互いに干渉しない。
-  function animateWords() {
-    const spans = el.querySelectorAll<HTMLElement>('.wc-word');
-    spans.forEach((s, i) => {
+  function animateWords(container: HTMLElement) {
+    container.querySelectorAll<HTMLElement>('.wc-word').forEach((s, i) => {
       if (reduceMotion) {
         s.style.opacity = '1';
         return;
@@ -91,23 +90,24 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
     });
   }
 
-  async function render() {
-    let data: { words: [string, number][] };
+  let words: [string, number][] = [];
+  let lastWidth = 0;
+
+  // データは一度だけ取得する（リサイズのたびに再取得しない）
+  async function loadData(): Promise<boolean> {
     try {
       const res = await fetch(`${base}wordclouds/${encodeURIComponent(id)}.json`);
       if (!res.ok) throw new Error(String(res.status));
-      data = await res.json();
+      const data = await res.json();
+      words = data.words ?? [];
     } catch {
       fallback.textContent = 'この議員のデータはまだありません。';
-      return;
+      return false;
     }
-
-    const words = data.words ?? [];
     if (words.length === 0) {
       fallback.textContent = 'データがありません。';
-      return;
+      return false;
     }
-
     // 上位語ランキング（テキスト版・フォールバック兼アクセシビリティ）
     ranking.innerHTML = '';
     for (const [word, count] of words.slice(0, 20)) {
@@ -115,40 +115,52 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
       li.textContent = `${word}（${count}）`;
       ranking.appendChild(li);
     }
-
     if (!WordCloud.isSupported) {
       fallback.textContent =
         'お使いの環境ではワードクラウドを表示できません。上位語の一覧をご覧ください。';
-      return;
+      return false;
     }
+    return true;
+  }
 
-    // 横幅に合わせてサイズ決定（clientWidth が 0 のときは画面幅にフォールバック）
+  function draw() {
     const wrapWidth = el.parentElement?.clientWidth || window.innerWidth || 360;
     const width = Math.max(280, Math.min(880, wrapWidth));
+    // 幅が変わらないときは再描画しない。
+    // （モバイルのスクロールでアドレスバーが出入りすると resize が発火し高さだけ変わる。
+    //  毎回描画すると非同期描画が重なって「複数回レンダリング」して見える。）
+    if (width === lastWidth) return;
+    lastWidth = width;
+
     const narrow = width < 480; // スマホ
-    // 狭い画面は縦長にして、語を入りやすくする
-    const height = Math.round(width * (narrow ? 1.0 : 0.62));
+    const height = Math.round(width * (narrow ? 1.0 : 0.62)); // 狭い画面は縦長に
+
+    // 毎回コンテナを作り直す。前回の非同期描画が残っていても、それは DOM から
+    // 切り離された古いコンテナへ追記されるだけで、表示中のクラウドには重ならない。
     el.innerHTML = '';
     el.style.width = width + 'px';
     el.style.height = height + 'px';
+    const inner = document.createElement('div');
+    inner.style.position = 'relative';
+    inner.style.width = width + 'px';
+    inner.style.height = height + 'px';
+    el.appendChild(inner);
 
     // 狭い画面に100語は入りきらず空白になるため、幅に応じて語数を絞る
     const list = words.slice(0, narrow ? 35 : width < 700 ? 60 : 100);
     const maxCount = list[0][1] || 1;
     fallback.style.display = 'none';
 
-    el.addEventListener('wordcloudstop', animateWords, { once: true });
+    inner.addEventListener('wordcloudstop', () => animateWords(inner), { once: true });
 
-    WordCloud(el, {
+    WordCloud(inner, {
       list,
-      // 小さいグリッドで密に配置。最小語サイズも画面に合わせて小さく。
       gridSize: Math.max(4, Math.round(width / 80)),
       weightFactor: (count: number) =>
         (count / maxCount) * (width / (narrow ? 10 : 8)) + (narrow ? 8 : 12),
       fontFamily:
         "'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif",
-      color: (word, weight, fontSize, distance, theta) =>
-        palette[Math.floor(Math.random() * palette.length)],
+      color: () => palette[Math.floor(Math.random() * palette.length)],
       rotateRatio: 0,
       shuffle: false,
       drawOutOfBound: false,
@@ -157,11 +169,13 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
     });
   }
 
-  render();
+  (async () => {
+    if (await loadData()) draw();
+  })();
   let t: number;
   window.addEventListener('resize', () => {
     clearTimeout(t);
-    t = window.setTimeout(render, 300);
+    t = window.setTimeout(draw, 250);
   });
 </script>
 
